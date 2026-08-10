@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Scopus Keyword Co-occurrence Network</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #f5f7fa;
+    font-family: Arial, "Noto Sans Thai", sans-serif;
+    color: #344054;
+}
+
+.container {
+    max-width: 1500px;
+    margin: auto;
+    padding: 25px;
+}
+
+h1 {
+    text-align: center;
+    margin: 0 0 8px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #667085;
+    margin-bottom: 20px;
+}
+
+.cards {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.card {
+    background: white;
+    padding: 12px 30px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.card b {
+    font-size: 22px;
+}
+
+.toolbar {
+    background: white;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+input {
+    padding: 9px 12px;
+    width: 260px;
+    border: 1px solid #d0d5dd;
+    border-radius: 7px;
+}
+
+button {
+    padding: 9px 15px;
+    margin-left: 7px;
+    border: none;
+    border-radius: 7px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #1d4ed8;
+}
+
+#network {
+    width: 100%;
+    height: 720px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.legend {
+    text-align: center;
+    margin: 15px;
+}
+
+.dot {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    margin-left: 15px;
+    margin-right: 5px;
+}
+
+.description {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    line-height: 1.7;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>
+Keyword Co-occurrence Network จากข้อมูล Scopus
+</h1>
+
+<div class="subtitle">
+Visualization: ความสัมพันธ์ระหว่าง Author Keywords
+ที่ปรากฏร่วมกันในบทความ
+</div>
+
+
+<!-- ข้อมูลสรุป -->
+
+<div class="cards">
+
+<div class="card">
+จำนวนบทความ
+<br>
+<b id="articleCount"></b>
+</div>
+
+<div class="card">
+จำนวน Keyword
+<br>
+<b id="keywordCount"></b>
+</div>
+
+<div class="card">
+ความสัมพันธ์
+<br>
+<b id="edgeCount"></b>
+</div>
+
+</div>
+
+
+<!-- Search -->
+
+<div class="toolbar">
+
+<input
+    id="search"
+    type="text"
+    placeholder="ค้นหา Keyword..."
+>
+
+<button onclick="resetGraph()">
+รีเซ็ต
+</button>
+
+<button onclick="createGraph()">
+จัดตำแหน่งใหม่
+</button>
+
+</div>
+
+
+<!-- Network -->
+
+<svg
+id="network"
+viewBox="0 0 1500 720">
+</svg>
+
+
+<!-- Legend -->
+
+<div class="legend">
+
+<span>
+<i class="dot" style="background:#3b82f6"></i>
+Cluster 1
+</span>
+
+<span>
+<i class="dot" style="background:#ef4444"></i>
+Cluster 2
+</span>
+
+<span>
+<i class="dot" style="background:#22c55e"></i>
+Cluster 3
+</span>
+
+<span>
+<i class="dot" style="background:#f59e0b"></i>
+Cluster 4
+</span>
+
+</div>
+
+
+<!-- Description -->
+
+<div class="description">
+
+<h2>
+รายละเอียด Visualization
+</h2>
+
+<p>
+Visualization นี้สร้างจากข้อมูล
+<strong>Author Keywords</strong>
+จากบทความวิจัยในฐานข้อมูล Scopus จำนวน
+<strong>600 บทความ</strong>
+</p>
+
+<p>
+<strong>Node</strong>
+หรือวงกลม แทน Keyword แต่ละคำ
+ขนาดของวงกลมสัมพันธ์กับความถี่ของ Keyword
+</p>
+
+<p>
+<strong>Edge</strong>
+หรือเส้น แสดง Keyword ที่ปรากฏร่วมกัน
+ในบทความเดียวกัน
+</p>
+
+<p>
+<strong>สี</strong>
+ใช้แบ่งกลุ่มของ Keyword
+เพื่อช่วยให้เห็นความสัมพันธ์ของหัวข้อวิจัย
+</p>
+
+<p>
+ข้อมูลถูกฝังไว้ภายใน HTML แล้ว
+จึงสามารถนำไฟล์นี้ไปใช้กับ GitHub Pages
+ได้ทันที โดยไม่ต้องเลือกไฟล์ CSV
+</p>
+
+</div>
+
+</div>
+
+
+<script>
+
+
+// =====================================================
+// ข้อมูลจาก Scopus จริง
+// จำนวนบทความ = 600
+// Keyword = 40
+// =====================================================
+
+const DATA = {
+
+    article_count: 600,
+
+    nodes: [
+
+        {
+            id: "artificial intelligence",
+            frequency: 154
+        },
+
+        {
+            id: "machine learning",
+            frequency: 45
+        },
+
+        {
+            id: "deep learning",
+            frequency: 43
+        },
+
+        {
+            id: "artificial intelligence (ai)",
+            frequency: 26
+        },
+
+        {
+            id: "generative ai",
+            frequency: 19
+        },
+
+        {
+            id: "federated learning",
+            frequency: 17
+        },
+
+        {
+            id: "large language models",
+            frequency: 17
+        },
+
+        {
+            id: "explainable artificial intelligence",
+            frequency: 14
+        },
+
+        {
+            id: "large language model",
+            frequency: 13
+        },
+
+        {
+            id: "explainable ai",
+            frequency: 11
+        },
+
+        {
+            id: "ai",
+            frequency: 11
+        },
+
+        {
+            id: "computer vision",
+            frequency: 9
+        },
+
+        {
+            id: "cybersecurity education",
+            frequency: 8
+        },
+
+        {
+            id: "reinforcement learning",
+            frequency: 8
+        },
+
+        {
+            id: "big data",
+            frequency: 8
+        },
+
+        {
+            id: "cybersecurity",
+            frequency: 7
+        },
+
+        {
+            id: "chatgpt",
+            frequency: 7
+        },
+
+        {
+            id: "random forest",
+            frequency: 7
+        },
+
+        {
+            id: "large language models (llms)",
+            frequency: 6
+        },
+
+        {
+            id: "human-ai collaboration",
+            frequency: 6
+        },
+
+        {
+            id: "shap",
+            frequency: 6
+        },
+
+        {
+            id: "natural language processing",
+            frequency: 6
+        },
+
+        {
+            id: "generative artificial intelligence",
+            frequency: 6
+        },
+
+        {
+            id: "human activity recognition",
+            frequency: 6
+        },
+
+        {
+            id: "anomaly detection",
+            frequency: 6
+        },
+
+        {
+            id: "llm",
+            frequency: 5
+        },
+
+        {
+            id: "software engineering",
+            frequency: 5
+        },
+
+        {
+            id: "blockchain",
+            frequency: 5
+        },
+
+        {
+            id: "digital transformation",
+            frequency: 5
+        },
+
+        {
+            id: "convolutional neural networks",
+            frequency: 4
+        },
+
+        {
+            id: "ethics",
+            frequency: 4
+        },
+
+        {
+            id: "edge computing",
+            frequency: 4
+        },
+
+        {
+            id: "retrieval-augmented generation",
+            frequency: 4
+        },
+
+        {
+            id: "resource allocation",
+            frequency: 4
+        },
+
+        {
+            id: "iot",
+            frequency: 4
+        },
+
+        {
+            id: "xgboost",
+            frequency: 4
+        },
+
+        {
+            id: "feature selection",
+            frequency: 4
+        },
+
+        {
+            id: "data preprocessing",
+            frequency: 4
+        },
+
+        {
+            id: "agentic ai",
+            frequency: 4
+        },
+
+        {
+            id: "fault diagnosis",
+            frequency: 4
+        }
+
+    ],
+
+
+    // ==========================================
+    // ความสัมพันธ์ระหว่าง Keyword
+    // ==========================================
+
+    edges: [
+
+        {
+            source: "artificial intelligence",
+            target: "cybersecurity",
+            weight: 3
+        },
+
+        {
+            source: "chatgpt",
+            target: "generative ai",
+            weight: 3
+        },
+
+        {
+            source: "deep learning",
+            target: "machine learning",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "machine learning",
+            weight: 22
+        },
+
+        {
+            source: "deep learning",
+            target: "explainable artificial intelligence",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "deep learning",
+            weight: 12
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "reinforcement learning",
+            weight: 5
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "random forest",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "resource allocation",
+            weight: 2
+        },
+
+        {
+            source: "ai",
+            target: "artificial intelligence",
+            weight: 4
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "computer vision",
+            weight: 3
+        },
+
+        {
+            source: "generative ai",
+            target: "human-ai collaboration",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "generative ai",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "big data",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "blockchain",
+            weight: 3
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "federated learning",
+            weight: 3
+        },
+
+        {
+            source: "blockchain",
+            target: "federated learning",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "large language models",
+            weight: 3
+        },
+
+        {
+            source: "cybersecurity education",
+            target: "generative ai",
+            weight: 2
+        },
+
+        {
+            source: "human activity recognition",
+            target: "machine learning",
+            weight: 4
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "large language model",
+            weight: 4
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "natural language processing",
+            weight: 3
+        },
+
+        {
+            source: "machine learning",
+            target: "shap",
+            weight: 3
+        },
+
+        {
+            source: "deep learning",
+            target: "feature selection",
+            weight: 2
+        },
+
+        {
+            source: "computer vision",
+            target: "deep learning",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence (ai)",
+            target: "generative ai",
+            weight: 2
+        },
+
+        {
+            source: "large language models",
+            target: "machine learning",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "digital transformation",
+            weight: 2
+        },
+
+        {
+            source: "shap",
+            target: "xgboost",
+            weight: 2
+        },
+
+        {
+            source: "convolutional neural networks",
+            target: "explainable artificial intelligence",
+            weight: 2
+        },
+
+        {
+            source: "federated learning",
+            target: "machine learning",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "explainable ai",
+            weight: 2
+        },
+
+        {
+            source: "deep learning",
+            target: "explainable ai",
+            weight: 2
+        },
+
+        {
+            source: "artificial intelligence",
+            target: "edge computing",
+            weight: 2
+        },
+
+        {
+            source: "large language model",
+            target: "machine learning",
+            weight: 2
+        }
+
+    ]
+
+};
+
+
+// =====================================================
+// ตั้งค่า
+// =====================================================
+
+const COLORS = [
+
+    "#3b82f6",
+    "#ef4444",
+    "#22c55e",
+    "#f59e0b"
+
+];
+
+
+let nodes = [];
+
+let edges = [];
+
+
+// =====================================================
+// แสดงข้อมูล
+// =====================================================
+
+document.getElementById(
+    "articleCount"
+).textContent =
+    DATA.article_count;
+
+
+document.getElementById(
+    "keywordCount"
+).textContent =
+    DATA.nodes.length;
+
+
+document.getElementById(
+    "edgeCount"
+).textContent =
+    DATA.edges.length;
+
+
+// =====================================================
+// สร้าง Graph
+// =====================================================
+
+function createGraph() {
+
+
+    nodes =
+        DATA.nodes.map(
+            (node, index) => {
+
+                return {
+
+                    ...node,
+
+                    x:
+                        100 +
+                        Math.random() * 1300,
+
+                    y:
+                        80 +
+                        Math.random() * 550,
+
+                    vx: 0,
+
+                    vy: 0,
+
+                    cluster:
+                        index % 4
+
+                };
+
+            }
+        );
+
+
+    const nodeMap =
+        new Map(
+            nodes.map(
+                node => [
+                    node.id,
+                    node
+                ]
+            )
+        );
+
+
+    edges =
+        DATA.edges
+        .map(edge => {
+
+            return {
+
+                ...edge,
+
+                sourceNode:
+                    nodeMap.get(
+                        edge.source
+                    ),
+
+                targetNode:
+                    nodeMap.get(
+                        edge.target
+                    )
+
+            };
+
+        })
+        .filter(
+            edge =>
+                edge.sourceNode &&
+                edge.targetNode
+        );
+
+
+    simulate();
+
+    drawGraph();
+
+}
+
+
+// =====================================================
+// Force Simulation
+// =====================================================
+
+function simulate() {
+
+
+    for (
+        let iteration = 0;
+        iteration < 350;
+        iteration++
+    ) {
+
+
+        // แรงผลักระหว่าง Node
+
+        for (
+            let i = 0;
+            i < nodes.length;
+            i++
+        ) {
+
+            for (
+                let j = i + 1;
+                j < nodes.length;
+                j++
+            ) {
+
+                const a =
+                    nodes[i];
+
+                const b =
+                    nodes[j];
+
+
+                let dx =
+                    b.x - a.x;
+
+                let dy =
+                    b.y - a.y;
+
+
+                let distance =
+                    Math.sqrt(
+                        dx * dx +
+                        dy * dy
+                    );
+
+
+                if (
+                    distance < 1
+                ) {
+
+                    distance = 1;
+
+                }
+
+
+                const force =
+                    4500 /
+                    (distance * distance);
+
+
+                a.vx -=
+                    dx /
+                    distance *
+                    force;
+
+                a.vy -=
+                    dy /
+                    distance *
+                    force;
+
+
+                b.vx +=
+                    dx /
+                    distance *
+                    force;
+
+                b.vy +=
+                    dy /
+                    distance *
+                    force;
+
+            }
+
+        }
+
+
+        // แรงดึงตาม Edge
+
+        edges.forEach(
+            edge => {
+
+                const a =
+                    edge.sourceNode;
+
+                const b =
+                    edge.targetNode;
+
+
+                let dx =
+                    b.x - a.x;
+
+                let dy =
+                    b.y - a.y;
+
+
+                let distance =
+                    Math.sqrt(
+                        dx * dx +
+                        dy * dy
+                    );
+
+
+                if (
+                    distance < 1
+                ) {
+
+                    distance = 1;
+
+                }
+
+
+                const desiredDistance =
+                    150;
+
+
+                const force =
+                    (
+                        distance -
+                        desiredDistance
+                    ) * 0.008;
+
+
+                a.vx +=
+                    dx /
+                    distance *
+                    force;
+
+                a.vy +=
+                    dy /
+                    distance *
+                    force;
+
+
+                b.vx -=
+                    dx /
+                    distance *
+                    force;
+
+                b.vy -=
+                    dy /
+                    distance *
+                    force;
+
+            }
+        );
+
+
+        // อัปเดตตำแหน่ง
+
+        nodes.forEach(
+            node => {
+
+                node.vx *= 0.85;
+
+                node.vy *= 0.85;
+
+
+                node.x +=
+                    node.vx;
+
+                node.y +=
+                    node.vy;
+
+
+                node.x =
+                    Math.max(
+                        50,
+                        Math.min(
+                            1450,
+                            node.x
+                        )
+                    );
+
+
+                node.y =
+                    Math.max(
+                        50,
+                        Math.min(
+                            670,
+                            node.y
+                        )
+                    );
+
+            }
+        );
+
+    }
+
+}
+
+
+// =====================================================
+// วาด Graph
+// =====================================================
+
+function drawGraph() {
+
+
+    const svg =
+        document.getElementById(
+            "network"
+        );
+
+
+    svg.innerHTML = "";
+
+
+    // ==========================================
+    // วาดเส้น
+    // ==========================================
+
+    edges.forEach(
+        edge => {
+
+            const line =
+                document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "line"
+                );
+
+
+            line.setAttribute(
+                "x1",
+                edge.sourceNode.x
+            );
+
+
+            line.setAttribute(
+                "y1",
+                edge.sourceNode.y
+            );
+
+
+            line.setAttribute(
+                "x2",
+                edge.targetNode.x
+            );
+
+
+            line.setAttribute(
+                "y2",
+                edge.targetNode.y
+            );
+
+
+            line.setAttribute(
+                "stroke",
+                "#9ca3af"
+            );
+
+
+            line.setAttribute(
+                "stroke-width",
+                Math.min(
+                    1 +
+                    edge.weight * 0.7,
+                    8
+                )
+            );
+
+
+            line.setAttribute(
+                "opacity",
+                "0.5"
+            );
+
+
+            svg.appendChild(
+                line
+            );
+
+        }
+    );
+
+
+    // ==========================================
+    // วาด Node
+    // ==========================================
+
+    nodes.forEach(
+        node => {
+
+            const group =
+                document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "g"
+                );
+
+
+            const radius =
+                8 +
+                Math.sqrt(
+                    node.frequency
+                ) * 3.5;
+
+
+            const circle =
+                document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "circle"
+                );
+
+
+            circle.setAttribute(
+                "cx",
+                node.x
+            );
+
+
+            circle.setAttribute(
+                "cy",
+                node.y
+            );
+
+
+            circle.setAttribute(
+                "r",
+                radius
+            );
+
+
+            circle.setAttribute(
+                "fill",
+                COLORS[
+                    node.cluster
+                ]
+            );
+
+
+            circle.setAttribute(
+                "stroke",
+                "#ffffff"
+            );
+
+
+            circle.setAttribute(
+                "stroke-width",
+                "2"
+            );
+
+
+            // Tooltip
+
+            const title =
+                document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "title"
+                );
+
+
+            title.textContent =
+                node.id +
+                " — พบ " +
+                node.frequency +
+                " ครั้ง";
+
+
+            circle.appendChild(
+                title
+            );
+
+
+            group.appendChild(
+                circle
+            );
+
+
+            // ชื่อ Keyword
+
+            const text =
+                document.createElementNS(
+                    "http://www.w3.org/2000/svg",
+                    "text"
+                );
+
+
+            text.setAttribute(
+                "x",
+                node.x
+            );
+
+
+            text.setAttribute(
+                "y",
+                node.y +
+                radius +
+                16
+            );
+
+
+            text.setAttribute(
+                "text-anchor",
+                "middle"
+            );
+
+
+            text.setAttribute(
+                "font-size",
+                "13"
+            );
+
+
+            text.setAttribute(
+                "fill",
+                "#344054"
+            );
+
+
+            text.textContent =
+                node.id;
+
+
+            group.appendChild(
+                text
+            );
+
+
+            svg.appendChild(
+                group
+            );
+
+        }
+    );
+
+}
+
+
+// =====================================================
+// Search
+// =====================================================
+
+document
+.getElementById("search")
+.addEventListener(
+    "input",
+    function () {
+
+        const keyword =
+            this.value
+            .toLowerCase()
+            .trim();
+
+
+        const groups =
+            document
+            .getElementById(
+                "network"
+            )
+            .querySelectorAll(
+                "g"
+            );
+
+
+        groups.forEach(
+            (
+                group,
+                index
+            ) => {
+
+                const node =
+                    nodes[index];
+
+
+                if (
+                    keyword === ""
+                ) {
+
+                    group.setAttribute(
+                        "opacity",
+                        "1"
+                    );
+
+                    return;
+
+                }
+
+
+                if (
+                    node.id
+                    .toLowerCase()
+                    .includes(
+                        keyword
+                    )
+                ) {
+
+                    group.setAttribute(
+                        "opacity",
+                        "1"
+                    );
+
+                }
+
+                else {
+
+                    group.setAttribute(
+                        "opacity",
+                        "0.12"
+                    );
+
+                }
+
+            }
+        );
+
+    }
+);
+
+
+// =====================================================
+// Reset
+// =====================================================
+
+function resetGraph() {
+
+    document
+    .getElementById(
+        "search"
+    )
+    .value = "";
+
+    createGraph();
+
+}
+
+
+// =====================================================
+// เริ่มต้น
+// =====================================================
+
+createGraph();
+
+</script>
+
+</body>
+</html>
